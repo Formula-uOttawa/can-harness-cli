@@ -9,6 +9,7 @@ from textual.widgets import Button, Footer, Header, Input, RichLog
 from protocol import HarnessCommand, parse_raw_command
 from serial_manager import SerialManager
 
+from datetime import datetime
 
 class SerialDataReceived(Message):
     """Event posted from the SerialManager thread to Textual when data arrives."""
@@ -56,7 +57,7 @@ class CanHarnessApp(App):
         self.baudrate = baudrate
         self.available_ports = available_ports or []
         self.destination_mode = "head"
-
+        self.fh = open("tui_output.txt", "a", encoding="utf-8", buffering=1) # buffering=1 flushes line by line
         self.serial_mgr = SerialManager(
             port=self.port,
             baudrate=self.baudrate,
@@ -99,6 +100,7 @@ class CanHarnessApp(App):
         line = event.line
 
         log.write(f"[dim]RAW <--[/dim] {line}")
+
 
         if ":OK:" in line or ":INVALID:" in line:
             log.write(f"[bold green]ACK <--[/bold green] {line}")
@@ -144,8 +146,20 @@ class CanHarnessApp(App):
         self.query_one("#console_log", RichLog).clear()
 
     def on_unmount(self) -> None:
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         """Runs when quitting the application."""
         self.serial_mgr.disconnect()
+        
+        # Pull text directly from the UI widget
+        log_widget = self.query_one("#console_log", RichLog)
+        
+        # CHANGED: Use "a" mode to append to history instead of overwriting with "w"
+        with open("tui_output.txt", "a", encoding="utf-8") as f:
+            # Optional: Add a clear visual separator in the history file between app runs
+            f.write(f"\n--- NEW SESSION RECORDED AT {current_time} ---\n")
+            
+            for line in log_widget.lines:
+                f.write(f"{line.text}\n")
 
 
 def _available_ports() -> list[str]:
